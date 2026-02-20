@@ -1,0 +1,1365 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Tour Booking OCR Extractor</title>
+
+  <!-- OCR in browser -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
+  <style>
+    :root{
+      /* ✅ Brand: White (main) + Navy (secondary) + Gold (accent) */
+      --bg:#ffffff;
+      --card:#ffffff;
+      --line: rgba(11,31,59,.12);
+
+      --navy:#0b1f3b;
+      --navy-2:#12345f;
+      --gold:#d4af37;
+
+      --txt:#0f172a;
+      --muted:#5b6b84;
+
+      --shadow: 0 18px 55px rgba(11,31,59,.14);
+      --shadow-2: 0 10px 28px rgba(11,31,59,.10);
+      --radius: 22px;
+
+      --focus: 0 0 0 4px rgba(212,175,55,.18);
+    }
+
+    *{box-sizing:border-box}
+    html,body{height:100%}
+
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans Thai", sans-serif;
+      color:var(--txt);
+      background:
+        /* subtle pattern */
+        radial-gradient(900px 520px at 15% -10%, rgba(18,52,95,.10), transparent 62%),
+        radial-gradient(820px 520px at 90% -6%, rgba(212,175,55,.12), transparent 60%),
+        linear-gradient(135deg, rgba(11,31,59,.05), transparent 55%),
+        var(--bg);
+      position:relative;
+      overflow-x:hidden;
+    }
+
+    /* Decorative background layers */
+    body:before{
+      content:"";
+      position:fixed;
+      inset:-200px;
+      pointer-events:none;
+      background:
+        repeating-linear-gradient(
+          135deg,
+          rgba(11,31,59,.035) 0px,
+          rgba(11,31,59,.035) 10px,
+          transparent 10px,
+          transparent 26px
+        );
+      transform: rotate(-4deg);
+      opacity:.35;
+      z-index:0;
+    }
+    body:after{
+      content:"";
+      position:fixed;
+      inset:0;
+      pointer-events:none;
+      background:
+        radial-gradient(600px 240px at 8% 18%, rgba(212,175,55,.10), transparent 60%),
+        radial-gradient(520px 220px at 92% 16%, rgba(18,52,95,.09), transparent 60%);
+      z-index:0;
+    }
+
+    .wrap{
+      max-width:1180px;
+      margin:0 auto;
+      padding:26px;
+      position:relative;
+      z-index:1;
+    }
+
+    .header{
+      display:flex;
+      gap:16px;
+      align-items:flex-end;
+      justify-content:space-between;
+      flex-wrap:wrap;
+      margin-bottom:14px;
+      padding:18px 18px 14px;
+      border-radius: 22px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.92), rgba(255,255,255,.78));
+      border:1px solid rgba(11,31,59,.10);
+      box-shadow: var(--shadow-2);
+      position:relative;
+      overflow:hidden;
+    }
+    .header:before{
+      content:"";
+      position:absolute;
+      inset:-80px -60px auto auto;
+      width:320px;
+      height:240px;
+      background:
+        radial-gradient(circle at 30% 30%, rgba(212,175,55,.18), transparent 60%),
+        radial-gradient(circle at 70% 60%, rgba(18,52,95,.16), transparent 62%);
+      transform: rotate(10deg);
+      pointer-events:none;
+      opacity:.85;
+    }
+    .header:after{
+      content:"";
+      position:absolute;
+      inset:auto 0 0 0;
+      height:3px;
+      background: linear-gradient(90deg, rgba(18,52,95,.0), rgba(18,52,95,.9), rgba(212,175,55,.9), rgba(18,52,95,.0));
+      pointer-events:none;
+      opacity:.9;
+    }
+
+    .brand{display:flex;align-items:center;gap:12px}
+
+    /* ✅ Remove logo visually (keep HTML unchanged) */
+    .logo{display:none !important;}
+    .logo img{display:none !important;}
+
+    /* ✅ Make title super clear & bold */
+    h1{
+      margin:0;
+      font-size:28px;
+      line-height:1.1;
+      letter-spacing:.3px;
+      color:var(--navy);
+      font-weight:1000;
+      text-shadow: 0 1px 0 rgba(255,255,255,.85);
+    }
+
+    .badges{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:8px 12px;
+      border-radius:999px;
+      background: rgba(255,255,255,.92);
+      border: 1px solid rgba(11,31,59,.12);
+      color:var(--navy);
+      font-size:12px;
+      font-weight:900;
+      box-shadow: 0 6px 16px rgba(11,31,59,.08);
+      backdrop-filter: blur(6px);
+    }
+    .dot{
+      width:9px;
+      height:9px;
+      border-radius:999px;
+      background: linear-gradient(135deg, var(--gold), #f2dd8a);
+      box-shadow:0 0 0 4px rgba(212,175,55,.16), 0 8px 18px rgba(212,175,55,.20);
+    }
+
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    @media (max-width:920px){.grid{grid-template-columns:1fr}}
+
+    .card{
+      background: linear-gradient(180deg, rgba(255,255,255,.96), rgba(255,255,255,.92));
+      border: 1px solid rgba(11,31,59,.10);
+      border-radius: var(--radius);
+      padding: 18px;
+      box-shadow: var(--shadow);
+      position:relative;
+      overflow:hidden;
+    }
+    .card:before{
+      content:"";
+      position:absolute;
+      left:-60px;
+      top:-70px;
+      width:280px;
+      height:220px;
+      background:
+        radial-gradient(circle at 30% 30%, rgba(212,175,55,.16), transparent 60%),
+        radial-gradient(circle at 70% 60%, rgba(18,52,95,.14), transparent 62%);
+      transform: rotate(-10deg);
+      pointer-events:none;
+      opacity:.7;
+    }
+    .card:after{
+      content:"";
+      position:absolute;
+      inset:0;
+      border-radius: var(--radius);
+      border:1px solid rgba(212,175,55,.18);
+      pointer-events:none;
+      opacity:.75;
+    }
+
+    .section-title{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      margin-bottom:12px;
+    }
+
+    .label{
+      display:inline-flex;
+      align-items:center;
+      gap:10px;
+      font-size:12px;
+      letter-spacing:.45px;
+      text-transform:uppercase;
+      color:rgba(11,31,59,.85);
+      font-weight:1000;
+    }
+    .label .bar{
+      width:12px;
+      height:12px;
+      border-radius:4px;
+      background: linear-gradient(135deg, var(--navy), var(--navy-2));
+      box-shadow: 0 10px 18px rgba(11,31,59,.16);
+      position:relative;
+    }
+    .label .bar:after{
+      content:"";
+      position:absolute;
+      inset:2px;
+      border-radius:3px;
+      background: linear-gradient(135deg, var(--gold), #f2dd8a);
+      opacity:.95;
+    }
+
+    /* Drop zone */
+    .drop{
+      border:2px dashed rgba(18,52,95,.28);
+      border-radius:18px;
+      padding:18px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.94), rgba(255,255,255,.88));
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      min-height:220px;
+      text-align:center;
+      transition: transform .12s ease, background .12s ease, border-color .12s ease, box-shadow .12s ease;
+      outline:none;
+      position:relative;
+      overflow:hidden;
+    }
+    .drop:before{
+      content:"";
+      position:absolute;
+      inset:-40%;
+      background:
+        radial-gradient(circle at 30% 30%, rgba(212,175,55,.10), transparent 60%),
+        radial-gradient(circle at 70% 60%, rgba(18,52,95,.10), transparent 60%);
+      transform: rotate(12deg);
+      pointer-events:none;
+      opacity:.9;
+    }
+    .drop:hover{
+      transform: translateY(-2px);
+      box-shadow: 0 18px 40px rgba(11,31,59,.12);
+      border-color: rgba(212,175,55,.55);
+    }
+    .drop:focus{
+      box-shadow: var(--focus), 0 18px 40px rgba(11,31,59,.12);
+      border-color: rgba(212,175,55,.70);
+    }
+    .drop.dragover{
+      background: rgba(212,175,55,.10);
+      border-color: rgba(212,175,55,.85);
+      box-shadow: 0 20px 44px rgba(212,175,55,.16);
+      transform: translateY(-2px);
+    }
+    .drop-inner{
+      max-width:540px;
+      color:var(--muted);
+      line-height:1.55;
+      font-size:13px;
+      position:relative;
+      z-index:1;
+    }
+    .drop-title{
+      color:var(--navy);
+      font-weight:1000;
+      font-size:16px;
+      margin-bottom:8px;
+    }
+
+    .preview{
+      width:100%;
+      border:1px solid rgba(11,31,59,.12);
+      border-radius:18px;
+      background:#fff;
+      overflow:hidden;
+      margin-top:12px;
+      display:none;
+      box-shadow: 0 16px 36px rgba(11,31,59,.10);
+    }
+    .preview img{display:block;width:100%;height:auto}
+
+    .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+
+    /* Buttons: more depth */
+    button{
+      border:0;
+      border-radius:16px;
+      padding:11px 14px;
+      cursor:pointer;
+      font-weight:1000;
+      letter-spacing:.2px;
+      transition: transform .08s ease, box-shadow .14s ease, opacity .12s ease, filter .12s ease;
+      user-select:none;
+      white-space:nowrap;
+      position:relative;
+      overflow:hidden;
+    }
+    button:active{transform:translateY(1px)}
+    button:hover{transform: translateY(-1px)}
+    button:disabled{opacity:.55;cursor:not-allowed;box-shadow:none;transform:none}
+
+    .btn-primary{
+      background: linear-gradient(135deg, var(--navy) 0%, var(--navy-2) 90%);
+      color:#fff;
+      border: 1px solid rgba(212,175,55,.40);
+      box-shadow: 0 16px 30px rgba(11,31,59,.18);
+    }
+    .btn-primary:before{
+      content:"";
+      position:absolute;
+      inset:0;
+      background: radial-gradient(240px 120px at 25% 20%, rgba(212,175,55,.22), transparent 60%);
+      opacity:.9;
+      pointer-events:none;
+    }
+    .btn-primary:hover{box-shadow: 0 20px 40px rgba(11,31,59,.22)}
+
+    .btn-secondary{
+      background: linear-gradient(180deg, #ffffff, rgba(18,52,95,.04));
+      color:var(--navy);
+      border:1px solid rgba(11,31,59,.14);
+      box-shadow:0 12px 22px rgba(11,31,59,.10);
+    }
+    .btn-secondary:hover{
+      box-shadow:0 16px 28px rgba(11,31,59,.12);
+      border-color: rgba(212,175,55,.55);
+    }
+
+    .btn-ghost{
+      background: rgba(255,255,255,.55);
+      color:var(--navy);
+      border:1px solid rgba(11,31,59,.18);
+      box-shadow:0 10px 18px rgba(11,31,59,.08);
+      backdrop-filter: blur(6px);
+    }
+    .btn-ghost:hover{
+      border-color: rgba(212,175,55,.55);
+      box-shadow:0 14px 24px rgba(11,31,59,.10);
+    }
+
+    .btn-danger{
+      background: linear-gradient(135deg, #7f1d1d 0%, #b91c1c 100%);
+      color:#fff;
+      border:1px solid rgba(255,255,255,.22);
+      box-shadow: 0 16px 30px rgba(127,29,29,.16);
+    }
+    .btn-danger:hover{box-shadow: 0 20px 40px rgba(127,29,29,.20)}
+
+    /* Status bar */
+    .status{
+      margin-top:12px;
+      font-size:12px;
+      color:var(--muted);
+      padding:10px 12px;
+      border-radius:16px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.92), rgba(18,52,95,.03));
+      border:1px solid rgba(11,31,59,.12);
+      min-height:44px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      box-shadow: 0 12px 22px rgba(11,31,59,.08);
+    }
+    .progress{
+      flex:1;
+      height:9px;
+      border-radius:999px;
+      background: rgba(11,31,59,.08);
+      overflow:hidden;
+      max-width:320px;
+      border:1px solid rgba(11,31,59,.10);
+    }
+    .progress>div{
+      height:100%;
+      width:0%;
+      background: linear-gradient(90deg, var(--gold), rgba(212,175,55,.55));
+      transition: width .15s ease;
+    }
+
+    /* Inputs */
+    textarea, select, input[type="text"], input[type="date"]{
+      width:100%;
+      border-radius:16px;
+      border:1px solid rgba(11,31,59,.14);
+      background: rgba(255,255,255,.95);
+      padding:12px 12px;
+      font-size:14px;
+      line-height:1.55;
+      outline:none;
+      box-shadow: 0 10px 20px rgba(11,31,59,.06);
+      transition: box-shadow .12s ease, border-color .12s ease, transform .08s ease;
+    }
+    textarea:hover, select:hover, input[type="text"]:hover, input[type="date"]:hover{
+      border-color: rgba(212,175,55,.50);
+      box-shadow: 0 14px 26px rgba(11,31,59,.08);
+      transform: translateY(-1px);
+    }
+    textarea:focus, select:focus, input:focus{
+      border-color: rgba(212,175,55,.75);
+      box-shadow: var(--focus), 0 14px 30px rgba(11,31,59,.10);
+      transform:none;
+    }
+
+    /* ✅ dropdown text black (including options) */
+    select{ color:#000; }
+    option{ color:#000; }
+
+    details summary{
+      cursor:pointer;
+      font-weight:1000;
+      color:var(--navy);
+      list-style:none;
+      padding:8px 0;
+    }
+    details summary::-webkit-details-marker{display:none}
+
+    .mono{
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      font-size:12px;
+      color:rgba(11,31,59,.85);
+      min-height:160px;
+      background: rgba(255,255,255,.92);
+    }
+
+    .small{
+      font-size:12px;
+      color:var(--muted);
+      margin-top:10px;
+      line-height:1.5;
+    }
+
+    .control-row{
+      display:flex;
+      gap:12px;
+      flex-wrap:wrap;
+      margin-top:14px;
+      align-items:flex-end;
+    }
+    .control{flex:1;min-width:220px}
+    .control .label{margin-bottom:8px}
+    .inline-help{
+      font-size:12px;
+      color:var(--muted);
+      margin-top:8px;
+      line-height:1.45;
+    }
+
+    .maps-row{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-top:10px;
+    }
+    .maps-row input{flex:1;min-width:240px}
+
+    /* Make output box feel “premium” */
+    #output{
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.98), rgba(18,52,95,.02));
+      border: 1px solid rgba(11,31,59,.14);
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="header">
+      <div class="brand">
+        <div class="logo" aria-hidden="true">
+          <!-- ✅ Put 001.png next to this html -->
+          <img src="001.png" alt="Trips Chiang Mai Logo" onerror="this.style.display='none'">
+        </div>
+        <div>
+          <!-- ✅ Title only -->
+          <h1>Tour Booking</h1>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="pill"><span class="dot"></span>Viator + GetYourGuide</span>
+        <span class="pill"><span class="dot"></span>Paste image (Ctrl+V)</span>
+      </div>
+    </div>
+
+    <div class="grid">
+      <!-- LEFT -->
+      <div class="card">
+        <div class="section-title">
+          <div class="label"><span class="bar"></span>Upload Booking Screenshot</div>
+          <span class="pill"><span class="dot"></span>PNG/JPG</span>
+        </div>
+
+        <div id="drop" class="drop" tabindex="0">
+          <div class="drop-inner">
+            <div class="drop-title">ลากรูปมาวางที่นี่ หรือคลิกเพื่อเลือกไฟล์</div>
+            <div>หรือคลิกในกรอบนี้แล้วกด <b>Ctrl+V</b> เพื่อวางรูปจากคลิปบอร์ดได้</div>
+            <small>ทิป: ซูมให้ตัวหนังสือใหญ่ก่อนแคป จะอ่านแม่นขึ้น</small>
+          </div>
+          <input id="file" type="file" accept="image/*" style="display:none" />
+        </div>
+
+        <div class="preview" id="preview">
+          <img id="previewImg" alt="preview" />
+        </div>
+
+        <div class="row">
+          <button class="btn-primary" id="btnExtract" disabled>Extract From Image</button>
+          <button class="btn-secondary" id="btnTips" type="button">Tips</button>
+          <button class="btn-ghost" id="btnReset" type="button">Reset</button>
+        </div>
+
+        <div class="status" id="status">
+          <span id="statusText">รออัปโหลดรูป…</span>
+          <div class="progress"><div id="bar"></div></div>
+        </div>
+
+        <details style="margin-top:10px">
+          <summary>ดูข้อความที่อ่านได้ (Debug)</summary>
+          <textarea class="mono" id="ocrText" readonly style="margin-top:10px;"></textarea>
+        </details>
+
+        <div class="small">
+          ถ้าอ่านเพี้ยน: ลองใช้รูปที่ชัดขึ้น / ซูมให้ใหญ่ขึ้น / อย่าครอปชื่อโปรแกรมออก
+        </div>
+      </div>
+
+      <!-- RIGHT -->
+      <div class="card">
+        <div class="section-title">
+          <div class="label"><span class="bar"></span>Output (Editable)</div>
+          <span class="pill"><span class="dot"></span>Ready to send</span>
+        </div>
+
+        <textarea id="output" placeholder="Output จะขึ้นตรงนี้ (คุณแก้ไขได้ก่อนคัดลอก)" style="min-height:320px;"></textarea>
+
+        <!-- Google Maps helper -->
+        <div class="maps-row">
+          <input id="hotelSearchQuery" type="text" placeholder="ค้นหาโรงแรมใน Google Maps (ใส่ชื่อโรงแรม + เมือง เช่น My Mum Home Chiang Mai)" />
+          <button class="btn-secondary" id="btnOpenMaps" type="button">Open Google Maps</button>
+          <button class="btn-secondary" id="btnApplyMapLink" type="button" disabled>Apply Maps Link → Output</button>
+        </div>
+        <div class="inline-help">
+          ใช้เมื่อไม่ได้ลิงก์แผนที่: กด Open Google Maps → คัดลอกลิงก์ maps.app.goo.gl มาใส่ในช่องด้านล่าง → กด Apply
+        </div>
+        <div class="maps-row">
+          <input id="mapLinkManual" type="text" placeholder="วางลิงก์ Google Maps (maps.app.goo.gl/...)" />
+        </div>
+
+        <!-- Booker + Booking Date + Pickup Time -->
+        <div class="control-row">
+          <div class="control">
+            <div class="label"><span class="bar"></span>ผู้จอง</div>
+            <select id="bookerSelect"></select>
+            <div class="inline-help">เพิ่ม/ลบชื่อผู้จองได้ (เก็บไว้ในเครื่องด้วย)</div>
+            <div class="control-row" style="margin-top:8px;">
+              <div class="control" style="min-width:180px;">
+                <input id="bookerNewName" type="text" placeholder="พิมพ์ชื่อใหม่ เช่น Kan" />
+              </div>
+              <button class="btn-secondary" id="btnAddBooker" type="button">+ เพิ่มชื่อ</button>
+              <button class="btn-danger" id="btnRemoveBooker" type="button">ลบชื่อที่เลือก</button>
+            </div>
+          </div>
+
+          <div class="control">
+            <div class="label"><span class="bar"></span>วันที่จอง</div>
+            <input id="bookedDateInput" type="date" />
+            <div class="inline-help">Output จะเป็นรูปแบบ dd/mm/yyyy และแก้ไขได้จากปฏิทิน</div>
+          </div>
+        </div>
+
+        <!-- ✅ Pickup Time selector + add/remove -->
+        <div class="control-row">
+          <div class="control">
+            <div class="label"><span class="bar"></span>เวลารับ</div>
+            <select id="pickupSelect"></select>
+            <div class="inline-help">เลือกเวลารับได้ และเพิ่ม/ลบเวลารับได้ (เก็บไว้ในเครื่อง)</div>
+            <div class="control-row" style="margin-top:8px;">
+              <div class="control" style="min-width:180px;">
+                <input id="pickupNewTime" type="text" placeholder="เช่น 07.30 - 08.00 AM." />
+              </div>
+              <button class="btn-secondary" id="btnAddPickup" type="button">+ เพิ่มเวลา</button>
+              <button class="btn-danger" id="btnRemovePickup" type="button">ลบเวลาที่เลือก</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="row">
+          <button class="btn-primary" id="btnCopy" disabled type="button">Copy Output</button>
+          <button class="btn-secondary" id="btnCopyShort" disabled type="button">Copy (Short)</button>
+        </div>
+
+        <div class="small">
+          หมายเหตุ: Output จะใช้ “เวลารับ” จากตัวเลือกด้านบนเสมอ
+        </div>
+
+        <!-- ✅ Extracted Fields (ซ่อนถาวรตามที่คุณไม่ต้องการ) -->
+        <div id="fieldsSection" style="margin-top:14px; display:none;">
+          <div class="label"><span class="bar"></span>Extracted Fields</div>
+          <div class="small">ซ่อนอยู่ (ไม่ใช้งาน)</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+<script>
+/** =========================
+ *  ✅ SETTINGS
+ *  ========================= */
+const SHOW_EXTRACTED_FIELDS = false;
+
+/** =========================
+ *  1) MASTER (optional)
+ *  ========================= */
+const PROGRAM_MASTER = [
+  {
+    codeBase: "G-02",
+    platform: "GetYourGuide",
+    mainNames: [
+      "Chiang Mai: Chiang Rai Temples, Golden Triangle & Boat Tour",
+      "Chiang Rai Temples, Golden Triangle & Boat Tour"
+    ],
+    options: []
+  },
+  {
+    codeBase: "V002",
+    platform: "Viator",
+    mainNames: [
+      "Chiang Rai Secrets: Temples, Tribes & Golden Triangle",
+      "Chiang Rai Secrets"
+    ],
+    options: []
+  }
+];
+
+const $ = (id)=>document.getElementById(id);
+let currentFile = null;
+let lastFields = null;
+
+/** =========================
+ *  2) UTIL
+ *  ========================= */
+function setStatus(text, pct=0){
+  $("statusText").textContent = text;
+  $("bar").style.width = Math.max(0, Math.min(100, pct)) + "%";
+}
+function norm(s){ return (s||"").replace(/\s+/g," ").trim(); }
+function cleanLeadingNoise(s){
+  s = (s || "").trim();
+  s = s.replace(/^(?:ey|ly|ty|uy|iy|vy)\b\s*/i, "");
+  s = s.replace(/^[a-z]\b\s*/i, "");
+  return s.trim();
+}
+function formatDateDMY(isoDate){
+  if(!isoDate) return "";
+  const [y,m,d] = isoDate.split("-");
+  return `${d}/${m}/${y}`;
+}
+function normalizeName(name){ return (name||"").trim().replace(/\s+/g," "); }
+function normalizePickup(s){
+  return String(s||"").trim().replace(/\s+/g," ");
+}
+function isLikelyEmail(s){
+  return /@/.test(s) || /reply\.getyourguide\.com/i.test(s) || /\bcustomer[-_]/i.test(s);
+}
+function looksLikePersonName(s){
+  const t = String(s||"").trim();
+  if(!t) return false;
+  if(isLikelyEmail(t)) return false;
+  if(t.length < 3) return false;
+  if(/\b(reference|number|date|participants|pickup|price|language|tour)\b/i.test(t)) return false;
+  if(/^[A-Za-zÀ-ÖØ-öø-ÿ'’\-]+(\s+[A-Za-zÀ-ÖØ-öø-ÿ'’\-]+){0,4}$/.test(t)) return true;
+  return false;
+}
+
+/** Label helpers */
+function pickAfterLabelOrNextLine(text, labelRegex){
+  const lines = (text||"").split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+  for(let i=0;i<lines.length;i++){
+    const l = lines[i];
+    if(labelRegex.test(l)){
+      let val = l.replace(labelRegex, "").trim();
+      if(!val && lines[i+1]) val = lines[i+1].trim();
+      return val;
+    }
+  }
+  return "";
+}
+
+/** =========================
+ *  3) Platform detect
+ *  ========================= */
+function detectPlatform(text){
+  const t = (text||"").toLowerCase();
+  if (t.includes("viator")) return "Viator";
+  if (t.includes("getyourguide") || t.includes("get your guide") || /\bgyg\b/i.test(text)) return "GetYourGuide";
+  return "";
+}
+
+/** =========================
+ *  4) Extractors (Viator + GYG)
+ *  ========================= */
+function extractProgramFull(text){
+  const platform = detectPlatform(text);
+  if(platform === "Viator"){
+    const v = pickAfterLabelOrNextLine(text, /^Tour Name:\s*/i);
+    return cleanLeadingNoise(v);
+  }
+  const lines = text.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+  const candidates = lines
+    .filter(l => l.length >= 18)
+    .filter(l => /chiang\s+mai|chiang\s+rai|doi\s+inthanon|golden\s+triangle|temples|luang\s+prabang|slow\s+boat|transfer|trek/i.test(l));
+  const pick = candidates.sort((a,b)=>b.length-a.length)[0] || "";
+  return cleanLeadingNoise(pick);
+}
+
+function extractDate(text){
+  const platform = detectPlatform(text);
+  if(platform === "Viator"){
+    return pickAfterLabelOrNextLine(text, /^Travel Date:\s*/i) || "";
+  }
+  let m = text.match(/\b(?:Mon|Tue|Tues|Wed|Thu|Thur|Fri|Sat|Sun)\s*,\s*[A-Za-z]{3,}\s+\d{1,2}\s*,\s*\d{4}\b/i);
+  if(m) return m[0];
+  m = text.match(/\b[A-Za-z]{3,}\s+\d{1,2}\s*,\s*\d{4}\b/);
+  if(m) return m[0];
+  m = text.match(/\b\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}\b/);
+  if(m) return m[0];
+  return "";
+}
+
+/** Main customer name */
+function extractGuestName(text){
+  const platform = detectPlatform(text);
+  const raw = text || "";
+  const lines = raw.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+
+  if(platform === "Viator"){
+    return pickAfterLabelOrNextLine(raw, /^Lead Traveler Name:\s*/i) || "";
+  }
+
+  const idx = lines.findIndex(l => /main\s+customer/i.test(l));
+  if(idx >= 0){
+    const sameLine = lines[idx].replace(/.*main\s+customer\s*/i,"").trim();
+    if(looksLikePersonName(sameLine)) return sameLine;
+
+    for(let i=idx+1;i<Math.min(lines.length, idx+6);i++){
+      const cand = lines[i];
+      if(looksLikePersonName(cand)) return cand;
+      const parts = cand.split(/\s{2,}|\s*\|\s*|\s*,\s*/).map(x=>x.trim()).filter(Boolean);
+      for(const p of parts){
+        if(looksLikePersonName(p)) return p;
+      }
+      if(isLikelyEmail(cand)) continue;
+    }
+  }
+  const fallback = lines.find(l => looksLikePersonName(l));
+  return fallback || "";
+}
+
+function extractPax(text){
+  const platform = detectPlatform(text);
+  if(platform === "Viator"){
+    const v = pickAfterLabelOrNextLine(text, /^Travelers:\s*/i);
+    const m = v.match(/(\d+)/);
+    return m ? m[1] : "";
+  }
+  let m = text.match(/\b(\d+)\s*x\s*Adults?\b/i);
+  if(m) return m[1];
+  m = text.match(/\b(\d+)\s*(?:pax|people|persons|participants)\b/i);
+  if(m) return m[1];
+  m = text.match(/\bTravelers?:\s*(\d+)\b/i);
+  if(m) return m[1];
+  return "";
+}
+
+function extractHotel(text){
+  const platform = detectPlatform(text);
+  const raw = text || "";
+  const lines = raw.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+
+  if(platform === "Viator"){
+    const hotelLine =
+      pickAfterLabelOrNextLine(raw, /^Hotel\s*Pick\s*up\s*:?\s*/i) ||
+      pickAfterLabelOrNextLine(raw, /^Hotel\s*Pickup\s*:?\s*/i);
+
+    if(hotelLine){
+      const first = hotelLine.split(",")[0].trim();
+      return first || "";
+    }
+    for(let i=0;i<lines.length;i++){
+      if(/hotel/i.test(lines[i]) && /pick/i.test(lines[i])){
+        const next = lines[i+1] || "";
+        const first = next.split(",")[0].trim();
+        if(first) return first;
+      }
+    }
+    return "";
+  }
+
+  for(const l of lines){
+    if(/pickup/i.test(l)){
+      let s = l.replace(/.*pickup\s*:?\s*/i, "");
+      s = s.replace(/open in google maps.*/i, "").trim();
+      const first = s.split(",")[0].trim();
+      if(first && first.length >= 2) return first;
+    }
+  }
+  const pIdx = lines.findIndex(l => /^pickup\b/i.test(l) || /\bpickup\b/i.test(l));
+  if(pIdx >= 0){
+    const next = lines.slice(pIdx+1).find(l => l && !/open in google maps/i.test(l));
+    if(next){
+      const first = next.split(",")[0].trim();
+      if(first && first.length >= 2) return first;
+    }
+  }
+  const hit = lines.find(l => /hotel|hostel|resort|guesthouse|guest house|inn/i.test(l));
+  if(hit){
+    const first = hit.split(",")[0].trim();
+    if(first && first.length >= 2) return first;
+  }
+  return "";
+}
+
+function extractMapLink(text){
+  const m = text.match(/https?:\/\/(maps\.app\.goo\.gl|goo\.gl\/maps|www\.google\.com\/maps)[^\s)]+/i);
+  return m ? m[0] : "";
+}
+
+function extractPhone(text){
+  const platform = detectPlatform(text);
+  if(platform === "Viator"){
+    const v = pickAfterLabelOrNextLine(text, /^Phone:\s*/i);
+    if(v){
+      const m = v.match(/(\+?\d[\d\s\-()]{6,}\d)/);
+      return m ? m[1].replace(/\s+/g," ").trim() : "";
+    }
+  }
+  const m = text.match(/(\+?\d[\d\s\-()]{7,}\d)/);
+  return m ? m[1].replace(/\s+/g," ").trim() : "";
+}
+
+function extractVoucherPlatform(text){
+  const p = detectPlatform(text);
+  if(p === "GetYourGuide") return "E- Voucher ของ Get Your Guide";
+  if(p === "Viator") return "E- Voucher ของ Viator";
+  return "E- Voucher";
+}
+function extractPaymentStatus(text){
+  const t = (text||"").toLowerCase();
+  if(t.includes("paid in full") || t.includes("paid")) return "ลูกค้าจ่ายเงินครบแล้วค่ะ";
+  if(t.includes("deposit")) return "ลูกค้ามัดจำแล้วค่ะ";
+  if(t.includes("unpaid")) return "ลูกค้ายังไม่ชำระค่ะ";
+  return "ลูกค้าจ่ายเงินครบแล้วค่ะ";
+}
+
+/** ✅ Options: ONLY show Excl. Long Neck = ไม่รวมคอยาว (if detected) */
+function detectOptionExclLongNeckOnly(text){
+  const raw = String(text||"");
+  const hasExclLongNeck = /excl\.?\s*long\s*neck|excluding\s+long\s+neck|without\s+long\s+neck/i.test(raw);
+  if(!hasExclLongNeck) return { optionEN:"", optionTH:"" };
+  return { optionEN:"Excl. Long Neck", optionTH:"ไม่รวมคอยาว" };
+}
+
+/** Viator: Tour Grade parsing (ex: "A – Incl. Long Neck") */
+function extractViatorTourGrade(text){
+  const raw = String(text||"");
+  const v = pickAfterLabelOrNextLine(raw, /^Tour Grade:\s*/i);
+  return v || "";
+}
+
+/** =========================
+ *  5) Pickup Times (persistent)
+ *  ========================= */
+const PICKUP_STORAGE_KEY = "booking_extractor_pickups_v1";
+const DEFAULT_PICKUPS = ["07.00 - 07.30 AM."];
+
+function loadPickups(){
+  try{
+    const raw = localStorage.getItem(PICKUP_STORAGE_KEY);
+    if(!raw) return [...DEFAULT_PICKUPS];
+    const arr = JSON.parse(raw);
+    if(!Array.isArray(arr) || arr.length===0) return [...DEFAULT_PICKUPS];
+    return arr.map(x=>String(x)).filter(Boolean);
+  }catch{
+    return [...DEFAULT_PICKUPS];
+  }
+}
+function savePickups(arr){ localStorage.setItem(PICKUP_STORAGE_KEY, JSON.stringify(arr)); }
+
+function refreshPickupSelect(prefer){
+  const sel = $("pickupSelect");
+  const list = loadPickups();
+  sel.innerHTML = "";
+  for(const t of list){
+    const opt = document.createElement("option");
+    opt.value = t;
+    opt.textContent = t;
+    sel.appendChild(opt);
+  }
+  const pick = (prefer && list.includes(prefer)) ? prefer : (list[0] || DEFAULT_PICKUPS[0]);
+  sel.value = pick;
+}
+function getPickupTime(){
+  return ($("pickupSelect")?.value || DEFAULT_PICKUPS[0]);
+}
+
+/** =========================
+ *  6) Output
+ *  ========================= */
+function buildCompanyOutput(fields){
+  const programLine = fields.programFull || "";
+
+  const bookerName = ($("bookerSelect")?.value || "Tam");
+  const bookerPhone = "0622895343";
+
+  const bookedDateISO = ($("bookedDateInput")?.value || "");
+  const bookedDateText = bookedDateISO ? formatDateDMY(bookedDateISO) : "";
+
+  const hotelBlock = fields.mapLink
+    ? `${fields.hotelName || ""}\n${fields.mapLink}`
+    : `${fields.hotelName || ""}\n(ใส่ลิงก์ Google Maps ได้ในช่อง Map Link แล้วกด Apply)`;
+
+  const pickupTime = getPickupTime();
+
+  const optionDisplay = fields.optionEN
+    ? ` (${fields.optionEN} = ${fields.optionTH})`
+    : "";
+
+  return `จองทัวร์ค่ะ
+
+📌วันที่เดินทาง : ${fields.travelDate || ""}
+
+📌จองทัวร์โปรแกรม : ${programLine}${optionDisplay}${fields.extraNote ? " " + fields.extraNote : ""}
+
+📌ชื่อลูกค้า : ${fields.guestName || ""}
+
+📌จำนวนลูกค้า: ${fields.pax || ""}
+
+📌เวลารับ: ${pickupTime}
+
+📌ชื่อโรงแรม : ${hotelBlock}
+
+📌เบอร์ห้องลูกค้า: -
+
+📌 เบอร์โทรศัพท์ลูกค้า: ${fields.phone || ""}
+
+🚩ลูกค้าใช้ : ${fields.voucher || "E- Voucher"} ${fields.paymentStatus || "ลูกค้าจ่ายเงินครบแล้วค่ะ"}
+
+(รบกวนถ่ายรูป Voucher ลูกค้าและส่งให้ตอนวางบิลด้วยค่ะ ทางบัญชีต้องการเก็บไว้)
+
+ผู้จอง : ${bookerName} (${bookerPhone})         วันที่จอง  ${bookedDateText}`;
+}
+
+function buildShortOutput(fields){
+  return `จองทัวร์ค่ะ
+📌วันที่เดินทาง : ${fields.travelDate || ""}
+📌โปรแกรม : ${fields.programFull || ""}${fields.optionEN ? " ("+fields.optionEN+" = "+fields.optionTH+")" : ""}
+📌ลูกค้า : ${fields.guestName || ""}
+📌จำนวน : ${fields.pax || ""}
+📌โรงแรม : ${fields.hotelName || ""}`;
+}
+
+/** =========================
+ *  7) Extract all
+ *  ========================= */
+function extractAllFromText(ocrText){
+  const raw = ocrText || "";
+  const platform = detectPlatform(raw);
+
+  const programFull = norm(extractProgramFull(raw));
+  const travelDate  = extractDate(raw);
+  const guestName   = extractGuestName(raw);
+  const pax         = extractPax(raw);
+  const hotelName   = extractHotel(raw);
+  const mapLink     = extractMapLink(raw);
+  const phone       = extractPhone(raw);
+  const voucher     = extractVoucherPlatform(raw);
+  const paymentStatus = extractPaymentStatus(raw);
+
+  // ✅ Only Excl. Long Neck mapping (if detected)
+  // Viator: Tour Grade often contains Incl/Excl Long Neck
+  const viatorGrade = (platform === "Viator") ? extractViatorTourGrade(raw) : "";
+  const opt = detectOptionExclLongNeckOnly(raw + "\n" + viatorGrade);
+
+  return {
+    platform,
+    programFull,
+    optionEN: opt.optionEN,
+    optionTH: opt.optionTH,
+    travelDate,
+    guestName,
+    pax,
+    hotelName,
+    mapLink,
+    phone,
+    voucher,
+    paymentStatus,
+    extraNote: ""
+  };
+}
+
+/** =========================
+ *  8) OCR
+ *  ========================= */
+async function runOCR(file){
+  setStatus("กำลังเตรียม OCR…", 6);
+
+  const result = await Tesseract.recognize(
+    file,
+    "eng",
+    {
+      logger: (m)=>{
+        const pct = m.progress ? Math.round(m.progress * 100) : 0;
+        if(m.status === "loading tesseract core") setStatus("กำลังโหลด OCR engine…", 5);
+        if(m.status === "loading language traineddata") setStatus("กำลังโหลดภาษา…", 8);
+        if(m.status === "recognizing text") setStatus("กำลังอ่านตัวหนังสือจากรูป…", Math.max(10, pct));
+      }
+    }
+  );
+  return (result?.data?.text || "").trim();
+}
+
+/** =========================
+ *  9) Bookers add/remove (persistent)
+ *  ========================= */
+const BOOKER_STORAGE_KEY = "booking_extractor_bookers_v1";
+const DEFAULT_BOOKERS = ["Fay","Ploy","Mon","Plam","Tam"];
+
+function loadBookers(){
+  try{
+    const raw = localStorage.getItem(BOOKER_STORAGE_KEY);
+    if(!raw) return [...DEFAULT_BOOKERS];
+    const arr = JSON.parse(raw);
+    if(!Array.isArray(arr) || arr.length===0) return [...DEFAULT_BOOKERS];
+    return arr.map(x=>String(x)).filter(Boolean);
+  }catch{
+    return [...DEFAULT_BOOKERS];
+  }
+}
+function saveBookers(arr){ localStorage.setItem(BOOKER_STORAGE_KEY, JSON.stringify(arr)); }
+
+function refreshBookerSelect(preferName){
+  const sel = $("bookerSelect");
+  const list = loadBookers();
+  sel.innerHTML = "";
+  for(const name of list){
+    const opt = document.createElement("option");
+    opt.value = name;
+    opt.textContent = name;
+    sel.appendChild(opt);
+  }
+  const pick = preferName && list.includes(preferName) ? preferName : (list.includes("Tam") ? "Tam" : list[0]);
+  sel.value = pick;
+}
+
+/** =========================
+ *  10) UI (Upload / Drag / Paste)
+ *  ========================= */
+const drop = $("drop");
+const file = $("file");
+
+drop.addEventListener("click", ()=> file.click());
+drop.addEventListener("dragover", (e)=>{ e.preventDefault(); drop.classList.add("dragover"); });
+drop.addEventListener("dragleave", ()=> drop.classList.remove("dragover"));
+drop.addEventListener("drop", (e)=>{
+  e.preventDefault();
+  drop.classList.remove("dragover");
+  const f = e.dataTransfer.files?.[0];
+  if(f) loadFile(f);
+});
+file.addEventListener("change", ()=>{
+  const f = file.files?.[0];
+  if(f) loadFile(f);
+});
+
+function loadFile(f){
+  if(!f.type.startsWith("image/")){
+    setStatus("กรุณาเลือกไฟล์รูปภาพ (PNG/JPG)", 0);
+    return;
+  }
+  currentFile = f;
+
+  const imgURL = URL.createObjectURL(f);
+  $("previewImg").src = imgURL;
+  $("preview").style.display = "block";
+
+  $("ocrText").value = "";
+  $("output").value = "";
+  $("btnCopy").disabled = true;
+  $("btnCopyShort").disabled = true;
+
+  $("btnExtract").disabled = false;
+  setStatus(`เลือกไฟล์แล้ว: ${f.name}`, 0);
+}
+
+function refreshOutputIfReady(){
+  if(!lastFields) return;
+  $("output").value = buildCompanyOutput(lastFields);
+}
+
+/* ✅ Paste image (Ctrl+V / right-click paste if allowed) */
+drop.addEventListener("mousedown", () => drop.focus());
+drop.addEventListener("paste", handlePasteImage);
+document.addEventListener("paste", handlePasteImage);
+
+function handlePasteImage(e){
+  try{
+    const items = e.clipboardData?.items;
+    if(!items || !items.length) return;
+
+    let imageItem = null;
+    for(const it of items){
+      if(it.type && it.type.startsWith("image/")){
+        imageItem = it; break;
+      }
+    }
+    if(!imageItem) return;
+
+    e.preventDefault();
+    const blob = imageItem.getAsFile();
+    if(!blob) return;
+
+    const ext = (blob.type.split("/")[1] || "png").toLowerCase();
+    const pastedFile = new File([blob], `pasted_${Date.now()}.${ext}`, { type: blob.type });
+
+    loadFile(pastedFile);
+    setStatus("✅ วางรูปจากคลิปบอร์ดแล้ว", 0);
+  }catch(err){
+    console.error(err);
+    setStatus("❌ วางรูปไม่สำเร็จ ลอง Ctrl+V หรือใช้การเลือกไฟล์แทน", 0);
+  }
+}
+
+$("btnExtract").addEventListener("click", async ()=>{
+  if(!currentFile) return;
+
+  try{
+    $("btnExtract").disabled = true;
+    $("btnCopy").disabled = true;
+    $("btnCopyShort").disabled = true;
+    $("output").value = "";
+
+    setStatus("กำลังอ่านรูป…", 2);
+    const text = await runOCR(currentFile);
+    $("ocrText").value = text;
+
+    setStatus("กำลังสกัดข้อมูล…", 92);
+    const fields = extractAllFromText(text);
+    lastFields = fields;
+
+    $("hotelSearchQuery").value = fields.hotelName ? `${fields.hotelName} Chiang Mai` : "";
+    $("mapLinkManual").value = fields.mapLink || "";
+    $("btnApplyMapLink").disabled = !($("mapLinkManual").value || "").trim();
+
+    $("output").value = buildCompanyOutput(fields);
+
+    $("btnCopy").disabled = false;
+    $("btnCopyShort").disabled = false;
+
+    setStatus("✅ เสร็จแล้ว (Output แก้ไขได้ก่อนคัดลอก)", 100);
+
+  } catch(err){
+    console.error(err);
+    setStatus("❌ OCR มีปัญหา ลองใช้รูปที่ชัดขึ้น / ซูมให้ใหญ่ขึ้น แล้วลองใหม่", 0);
+  } finally{
+    $("btnExtract").disabled = false;
+  }
+});
+
+$("btnReset").addEventListener("click", ()=>{
+  currentFile = null;
+  lastFields = null;
+  file.value = "";
+  $("preview").style.display = "none";
+  $("previewImg").src = "";
+  $("ocrText").value = "";
+  $("output").value = "";
+  $("btnExtract").disabled = true;
+  $("btnCopy").disabled = true;
+  $("btnCopyShort").disabled = true;
+
+  $("hotelSearchQuery").value = "";
+  $("mapLinkManual").value = "";
+  $("btnApplyMapLink").disabled = true;
+
+  setStatus("รออัปโหลดรูป…", 0);
+});
+
+$("btnTips").addEventListener("click", ()=>{
+  alert("ทิปให้ OCR แม่นขึ้น:\n- ซูมให้ตัวหนังสือใหญ่ก่อนแคป\n- อย่าครอปชื่อโปรแกรม/วันที่/ชื่อโรงแรมออก\n- รูปคม ไม่เบลอ\n- ถ้าตัวหนังสือเล็กมาก ลองแคปเฉพาะส่วนข้อมูล booking\n\nTip: คลิกกรอบอัปโหลด แล้วกด Ctrl+V เพื่อวางรูปได้");
+});
+
+async function copyText(text){ await navigator.clipboard.writeText(text); }
+
+$("btnCopy").addEventListener("click", async ()=>{
+  const out = $("output").value || "";
+  if(!out.trim()) return;
+  try{ await copyText(out); setStatus("📋 Copy Output แล้ว", 100); }
+  catch(e){ setStatus("คัดลอกไม่ได้ ลอง Ctrl+C", 100); }
+});
+
+$("btnCopyShort").addEventListener("click", async ()=>{
+  if(!lastFields) return;
+  const shortOut = buildShortOutput(lastFields);
+  try{ await copyText(shortOut); setStatus("📋 Copy (Short) แล้ว", 100); }
+  catch(e){ setStatus("คัดลอกไม่ได้ ลอง Ctrl+C", 100); }
+});
+
+/** Bookers add/remove */
+$("btnAddBooker").addEventListener("click", ()=>{
+  const name = normalizeName($("bookerNewName").value);
+  if(!name) return;
+
+  const list = loadBookers();
+  if(list.some(x => x.toLowerCase() === name.toLowerCase())){
+    setStatus("มีชื่อนี้อยู่แล้วในรายการ", 100);
+    $("bookerNewName").value = "";
+    return;
+  }
+  list.push(name);
+  saveBookers(list);
+  refreshBookerSelect(name);
+  $("bookerNewName").value = "";
+  setStatus(`✅ เพิ่มชื่อผู้จอง: ${name}`, 100);
+  refreshOutputIfReady();
+});
+
+$("btnRemoveBooker").addEventListener("click", ()=>{
+  const sel = $("bookerSelect");
+  const name = sel.value;
+  const list = loadBookers();
+
+  if(list.length <= 1){
+    setStatus("ลบไม่ได้: ต้องมีอย่างน้อย 1 ชื่อ", 100);
+    return;
+  }
+  const ok = confirm(`ต้องการลบชื่อ "${name}" ออกจากรายการใช่ไหม?`);
+  if(!ok) return;
+
+  const newList = list.filter(x => x !== name);
+  saveBookers(newList);
+  refreshBookerSelect(newList.includes("Tam") ? "Tam" : newList[0]);
+  setStatus(`🗑️ ลบชื่อผู้จอง: ${name}`, 100);
+  refreshOutputIfReady();
+});
+
+$("bookerSelect").addEventListener("change", refreshOutputIfReady);
+$("bookedDateInput").addEventListener("change", refreshOutputIfReady);
+
+/** Pickup add/remove */
+$("btnAddPickup").addEventListener("click", ()=>{
+  const t = normalizePickup($("pickupNewTime").value);
+  if(!t) return;
+
+  const list = loadPickups();
+  if(list.some(x => x.toLowerCase() === t.toLowerCase())){
+    setStatus("มีเวลานี้อยู่แล้วในรายการ", 100);
+    $("pickupNewTime").value = "";
+    return;
+  }
+  list.push(t);
+  savePickups(list);
+  refreshPickupSelect(t);
+  $("pickupNewTime").value = "";
+  setStatus(`✅ เพิ่มเวลารับ: ${t}`, 100);
+  refreshOutputIfReady();
+});
+
+$("btnRemovePickup").addEventListener("click", ()=>{
+  const sel = $("pickupSelect");
+  const t = sel.value;
+  const list = loadPickups();
+
+  if(list.length <= 1){
+    setStatus("ลบไม่ได้: ต้องมีอย่างน้อย 1 เวลา", 100);
+    return;
+  }
+  const ok = confirm(`ต้องการลบเวลา "${t}" ออกจากรายการใช่ไหม?`);
+  if(!ok) return;
+
+  const newList = list.filter(x => x !== t);
+  savePickups(newList);
+  refreshPickupSelect(newList[0]);
+  setStatus(`🗑️ ลบเวลารับ: ${t}`, 100);
+  refreshOutputIfReady();
+});
+$("pickupSelect").addEventListener("change", refreshOutputIfReady);
+
+/** Google Maps helper */
+$("btnOpenMaps").addEventListener("click", ()=>{
+  const q = ($("hotelSearchQuery").value || "").trim();
+  if(!q){
+    alert("กรุณาใส่ชื่อโรงแรมก่อน เช่น My Mum Home Chiang Mai");
+    return;
+  }
+  const url = "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(q);
+  window.open(url, "_blank");
+});
+
+$("mapLinkManual").addEventListener("input", ()=>{
+  $("btnApplyMapLink").disabled = !($("mapLinkManual").value || "").trim();
+});
+
+$("btnApplyMapLink").addEventListener("click", ()=>{
+  if(!lastFields){
+    alert("ยังไม่มีข้อมูลจาก OCR กรุณา Extract ก่อน");
+    return;
+  }
+  const link = ($("mapLinkManual").value || "").trim();
+  if(!link){
+    alert("กรุณาวางลิงก์ Google Maps ก่อน");
+    return;
+  }
+  lastFields.mapLink = link;
+  $("output").value = buildCompanyOutput(lastFields);
+  setStatus("✅ ใส่ลิงก์ Google Maps เข้า Output แล้ว", 100);
+});
+
+/** init defaults */
+(function initDefaults(){
+  refreshBookerSelect("Tam");
+
+  // ✅ today as default booking date (auto changes each day when you open the page)
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth()+1).padStart(2,"0");
+  const dd = String(today.getDate()).padStart(2,"0");
+  $("bookedDateInput").value = `${yyyy}-${mm}-${dd}`;
+
+  // ✅ pickup list
+  refreshPickupSelect(DEFAULT_PICKUPS[0]);
+
+  // ✅ hide extracted fields
+  $("fieldsSection").style.display = SHOW_EXTRACTED_FIELDS ? "block" : "none";
+
+  setStatus("รออัปโหลดรูป…", 0);
+})();
+</script>
+</body>
+</html>
